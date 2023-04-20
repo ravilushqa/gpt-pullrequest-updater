@@ -1,4 +1,4 @@
-module ar
+module github.com/ravilushqa/gpt-pullrequest-updater
 
 go 1.19
 
