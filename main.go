@@ -23,6 +23,12 @@ var opts struct {
 	Test        bool   `long:"test" env:"TEST" description:"Test mode"`
 }
 
+// FileDiff represents a single file diff.
+type FileDiff struct {
+	Header string
+	Diff   string
+}
+
 func main() {
 	if _, err := flags.Parse(&opts); err != nil {
 		if err.(*flags.Error).Type != flags.ErrHelp {
@@ -32,19 +38,12 @@ func main() {
 	}
 	openaiClient := openai.NewClient(opts.OpenAIToken)
 
-	title, err := getPullRequestTitle(opts.GithubToken, opts.Owner, opts.Repo, opts.PRNumber)
-	if err != nil {
-		return
-	}
-
-	jiraLink := generateJiraLinkByTitle(title)
-
 	diff, err := getDiffContent(opts.GithubToken, opts.Owner, opts.Repo, opts.PRNumber)
 	if err != nil {
 		fmt.Printf("Error fetching diff content: %v\n", err)
 		return
 	}
-	filesDiff, err := ParseGitDiffAndSplitPerFile(diff)
+	filesDiff, err := parseGitDiffAndSplitPerFile(diff)
 	if err != nil {
 		return
 	}
@@ -71,6 +70,13 @@ func main() {
 		return
 	}
 
+	title, err := getPullRequestTitle(opts.GithubToken, opts.Owner, opts.Repo, opts.PRNumber)
+	if err != nil {
+		return
+	}
+
+	jiraLink := generateJiraLinkByTitle(title)
+
 	description := fmt.Sprintf("## Jira\n%s\n%s", jiraLink, chatGPTDescription)
 	if opts.Test {
 		fmt.Println(description)
@@ -84,41 +90,6 @@ func main() {
 	}
 
 	fmt.Println("Pull request description updated successfully")
-}
-
-func updatePullRequestDescription(token string, o string, r string, number int, description string) error {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", o, r, number)
-
-	data := map[string]string{
-		"body": description,
-	}
-
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(payload))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("token %s", token))
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to update pull request description. Status code: %d", resp.StatusCode)
-	}
-
-	return nil
 }
 
 func getDiffContent(token, owner, repo string, prNumber int) (string, error) {
@@ -150,31 +121,8 @@ func getDiffContent(token, owner, repo string, prNumber int) (string, error) {
 	return string(body), nil
 }
 
-func generatePRDescription(client *openai.Client, messages []openai.ChatCompletionMessage) (string, error) {
-	resp, err := client.CreateChatCompletion(
-		context.Background(),
-		openai.ChatCompletionRequest{
-			Model:    openai.GPT3Dot5Turbo,
-			Messages: messages,
-		},
-	)
-
-	if err != nil {
-		fmt.Printf("ChatCompletion error: %v\n", err)
-		return "", err
-	}
-
-	return resp.Choices[0].Message.Content, nil
-}
-
-// FileDiff represents a single file diff.
-type FileDiff struct {
-	Header string
-	Diff   string
-}
-
-// ParseGitDiffAndSplitPerFile parses a git diff and splits it into a slice of FileDiff.
-func ParseGitDiffAndSplitPerFile(diff string) ([]FileDiff, error) {
+// parseGitDiffAndSplitPerFile parses a git diff and splits it into a slice of FileDiff.
+func parseGitDiffAndSplitPerFile(diff string) ([]FileDiff, error) {
 	lines := strings.Split(diff, "\n")
 	var fileDiffs []FileDiff
 
@@ -214,6 +162,23 @@ func getFilenameFromDiffHeader(diffHeader string) string {
 	} else {
 		return oldFileName
 	}
+}
+
+func generatePRDescription(client *openai.Client, messages []openai.ChatCompletionMessage) (string, error) {
+	resp, err := client.CreateChatCompletion(
+		context.Background(),
+		openai.ChatCompletionRequest{
+			Model:    openai.GPT3Dot5Turbo,
+			Messages: messages,
+		},
+	)
+
+	if err != nil {
+		fmt.Printf("ChatCompletion error: %v\n", err)
+		return "", err
+	}
+
+	return resp.Choices[0].Message.Content, nil
 }
 
 func getPullRequestTitle(token, owner, repo string, prNumber int) (string, error) {
@@ -259,4 +224,39 @@ func generateJiraLinkByTitle(title string) string {
 	jiraBaseURL := "https://jira.deliveryhero.com/browse/"
 
 	return fmt.Sprintf("[%s](%s%s)", issueKey, jiraBaseURL, issueKey)
+}
+
+func updatePullRequestDescription(token string, o string, r string, number int, description string) error {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", o, r, number)
+
+	data := map[string]string{
+		"body": description,
+	}
+
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(payload))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("token %s", token))
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("failed to update pull request description. Status code: %d", resp.StatusCode)
+	}
+
+	return nil
 }
