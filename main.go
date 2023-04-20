@@ -21,6 +21,7 @@ var opts struct {
 	Repo        string `long:"repo" env:"REPO" description:"GitHub repo" required:"true"`
 	PRNumber    int    `long:"pr-number" env:"PR_NUMBER" description:"Pull request number" required:"true"`
 	Test        bool   `long:"test" env:"TEST" description:"Test mode"`
+	SkipFiles   string `long:"skip-files" env:"SKIP_FILES" description:"Skip files. Comma separated list" default:"go.mod,go.sum,.pb.go"`
 }
 
 // FileDiff represents a single file diff.
@@ -58,7 +59,20 @@ func main() {
 		Content: prompt,
 	})
 	for _, fileDiff := range filesDiff {
-		prompt := fmt.Sprintf("File %s:\n%s\n%s\n", getFilenameFromDiffHeader(fileDiff.Header), fileDiff.Header, fileDiff.Diff)
+		fileName := getFilenameFromDiffHeader(fileDiff.Header)
+
+		isSkipped := false
+		for _, skipFile := range strings.Split(opts.SkipFiles, ",") {
+			if strings.Contains(fileName, skipFile) {
+				isSkipped = true
+				break
+			}
+		}
+		if isSkipped {
+			continue
+		}
+
+		prompt := fmt.Sprintf("File %s:\n%s\n%s\n", fileName, fileDiff.Header, fileDiff.Diff)
 		messages = append(messages, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleUser,
 			Content: prompt,
@@ -77,7 +91,7 @@ func main() {
 
 	jiraLink := generateJiraLinkByTitle(title)
 
-	description := fmt.Sprintf("## Jira\n%s\n%s", jiraLink, chatGPTDescription)
+	description := fmt.Sprintf("### Jira\n%s\n%s", jiraLink, chatGPTDescription)
 	if opts.Test {
 		fmt.Println(description)
 		os.Exit(0)
