@@ -10,6 +10,7 @@
       --repo=         GitHub repo [$REPO]
       --pr-number=    Pull request number [$PR_NUMBER]
       --test          Test mode [$TEST]
+      --skip-files=   Skip files. Comma separated list (default: go.mod,go.sum,.pb.go) [$SKIP_FILES]
 
 ### Help Options:
   -h, --help          Show this help message
