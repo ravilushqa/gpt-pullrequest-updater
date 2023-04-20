@@ -1,15 +1,12 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"strings"
 
+	"github.com/google/go-github/v51/github"
 	"github.com/jessevdk/go-flags"
 	"github.com/sashabaranov/go-openai"
 )
@@ -37,23 +34,21 @@ func main() {
 		}
 		os.Exit(0)
 	}
-	openaiClient := openai.NewClient(opts.OpenAIToken)
+	openaiClient := NewOpenAIClient(opts.OpenAIToken)
+	githubClient := NewGithubClient(context.Background(), opts.GithubToken)
 
-	diff, err := getDiffContent(opts.GithubToken, opts.Owner, opts.Repo, opts.PRNumber)
+	diff, err := githubClient.GetPullRequestDiff(context.Background(), opts.Owner, opts.Repo, opts.PRNumber)
 	if err != nil {
-		fmt.Printf("Error fetching diff content: %v\n", err)
+		fmt.Printf("Error getting pull request diff: %v\n", err)
 		return
 	}
-	filesDiff, err := parseGitDiffAndSplitPerFile(diff)
+	filesDiff, err := parseGitDiffAndSplitPerFile(diff, strings.Split(opts.SkipFiles, ","))
 	if err != nil {
 		return
 	}
 
 	var messages []openai.ChatCompletionMessage
-	prompt := fmt.Sprintf(
-		"Generate a GitHub pull request description based on the following changes " +
-			"without basic prefix in markdown format with ###Description and ###Changes blocks:\n",
-	)
+	prompt := fmt.Sprintf("Generate a GitHub pull request description based on the following changes without basic prefix in markdown format with ###Description and ###Changes blocks:\n")
 	messages = append(messages, openai.ChatCompletionMessage{
 		Role:    openai.ChatMessageRoleUser,
 		Content: prompt,
@@ -61,35 +56,25 @@ func main() {
 	for _, fileDiff := range filesDiff {
 		fileName := getFilenameFromDiffHeader(fileDiff.Header)
 
-		isSkipped := false
-		for _, skipFile := range strings.Split(opts.SkipFiles, ",") {
-			if strings.Contains(fileName, skipFile) {
-				isSkipped = true
-				break
-			}
-		}
-		if isSkipped {
-			continue
-		}
-
 		prompt := fmt.Sprintf("File %s:\n%s\n%s\n", fileName, fileDiff.Header, fileDiff.Diff)
 		messages = append(messages, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleUser,
 			Content: prompt,
 		})
 	}
-	chatGPTDescription, err := generatePRDescription(openaiClient, messages)
+	chatGPTDescription, err := openaiClient.ChatCompletion(context.Background(), messages)
 	if err != nil {
 		fmt.Printf("Error generating pull request description: %v\n", err)
 		return
 	}
 
-	title, err := getPullRequestTitle(opts.GithubToken, opts.Owner, opts.Repo, opts.PRNumber)
+	pr, err := githubClient.GetPullRequest(context.Background(), opts.Owner, opts.Repo, opts.PRNumber)
 	if err != nil {
+		fmt.Printf("Error getting pull request: %v\n", err)
 		return
 	}
 
-	jiraLink := generateJiraLinkByTitle(title)
+	jiraLink := generateJiraLinkByTitle(*pr.Title)
 
 	description := fmt.Sprintf("### Jira\n%s\n%s", jiraLink, chatGPTDescription)
 	if opts.Test {
@@ -97,55 +82,38 @@ func main() {
 		os.Exit(0)
 	}
 	// Update the pull request with the generated description
-	err = updatePullRequestDescription(opts.GithubToken, opts.Owner, opts.Repo, opts.PRNumber, description)
+	_, err = githubClient.UpdatePullRequest(
+		context.Background(), opts.Owner, opts.Repo, opts.PRNumber, &github.PullRequest{Body: &description},
+	)
 	if err != nil {
-		fmt.Printf("Error updating pull request description: %v\n", err)
+		fmt.Printf("Error updating pull request: %v\n", err)
 		return
 	}
-
-	fmt.Println("Pull request description updated successfully")
-}
-
-func getDiffContent(token, owner, repo string, prNumber int) (string, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", owner, repo, prNumber)
-	method := "GET"
-
-	client := &http.Client{}
-	req, err := http.NewRequest(method, url, nil)
-
-	if err != nil {
-		fmt.Println(err)
-		return "", err
-	}
-	req.Header.Add("Accept", "application/vnd.github.v3.diff")
-	req.Header.Add("Authorization", fmt.Sprintf("token %s", token))
-	//req.Header.Add("Cookie", "logged_in=no")
-
-	res, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer res.Body.Close()
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		return "", err
-	}
-
-	return string(body), nil
 }
 
 // parseGitDiffAndSplitPerFile parses a git diff and splits it into a slice of FileDiff.
-func parseGitDiffAndSplitPerFile(diff string) ([]FileDiff, error) {
+func parseGitDiffAndSplitPerFile(diff string, skipFiles []string) ([]FileDiff, error) {
 	lines := strings.Split(diff, "\n")
 	var fileDiffs []FileDiff
 
-	inFileDiff := false
+	inFileDiff, isSkipFile := false, false
 	var currentFileDiff FileDiff
 	for _, line := range lines {
 		if strings.HasPrefix(line, "diff --git") {
 			if inFileDiff {
 				fileDiffs = append(fileDiffs, currentFileDiff)
+			}
+			if len(skipFiles) > 0 {
+				isSkipFile = false
+				for _, skipFile := range skipFiles {
+					if strings.Contains(line, skipFile) {
+						isSkipFile = true
+						break
+					}
+				}
+			}
+			if isSkipFile {
+				continue
 			}
 			currentFileDiff = FileDiff{Header: line}
 			inFileDiff = true
@@ -178,57 +146,6 @@ func getFilenameFromDiffHeader(diffHeader string) string {
 	}
 }
 
-func generatePRDescription(client *openai.Client, messages []openai.ChatCompletionMessage) (string, error) {
-	resp, err := client.CreateChatCompletion(
-		context.Background(),
-		openai.ChatCompletionRequest{
-			Model:    openai.GPT3Dot5Turbo,
-			Messages: messages,
-		},
-	)
-
-	if err != nil {
-		fmt.Printf("ChatCompletion error: %v\n", err)
-		return "", err
-	}
-
-	return resp.Choices[0].Message.Content, nil
-}
-
-func getPullRequestTitle(token, owner, repo string, prNumber int) (string, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", owner, repo, prNumber)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return "", err
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("token %s", token))
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("Failed to fetch pull request details. Status code: %d", resp.StatusCode)
-	}
-
-	var pr struct {
-		Title string `json:"title"`
-	}
-
-	err = json.NewDecoder(resp.Body).Decode(&pr)
-	if err != nil {
-		return "", err
-	}
-
-	return pr.Title, nil
-}
-
 func generateJiraLinkByTitle(title string) string {
 	//NCR-1234
 	issueKey := strings.ToUpper(strings.Split(title, " ")[0])
@@ -238,39 +155,4 @@ func generateJiraLinkByTitle(title string) string {
 	jiraBaseURL := "https://jira.deliveryhero.com/browse/"
 
 	return fmt.Sprintf("[%s](%s%s)", issueKey, jiraBaseURL, issueKey)
-}
-
-func updatePullRequestDescription(token string, o string, r string, number int, description string) error {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/pulls/%d", o, r, number)
-
-	data := map[string]string{
-		"body": description,
-	}
-
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequest("PATCH", url, bytes.NewBuffer(payload))
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("token %s", token))
-	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to update pull request description. Status code: %d", resp.StatusCode)
-	}
-
-	return nil
 }
