@@ -57,11 +57,14 @@ func main() {
 		fileName := getFilenameFromDiffHeader(fileDiff.Header)
 
 		prompt := fmt.Sprintf("File %s:\n%s\n%s\n", fileName, fileDiff.Header, fileDiff.Diff)
-		messages = append(messages, openai.ChatCompletionMessage{
+		messages = append(messages, openai.CompletionRequest{
 			Role:    openai.ChatMessageRoleUser,
 			Content: prompt,
 		})
+
+		fmt.Println(fileName, len(prompt))
 	}
+	os.Exit(0)
 	chatGPTDescription, err := openaiClient.ChatCompletion(context.Background(), messages)
 	if err != nil {
 		fmt.Printf("Error generating pull request description: %v\n", err)
@@ -73,6 +76,14 @@ func main() {
 		fmt.Printf("Error getting pull request: %v\n", err)
 		return
 	}
+
+	//compare base branch with head branch
+	commitsComparison, err := githubClient.CompareCommits(context.Background(), opts.Owner, opts.Repo, pr.GetBase().GetRef(), pr.GetHead().GetRef())
+	if err != nil {
+		return
+	}
+
+	_ = commitsComparison
 
 	jiraLink := generateJiraLinkByTitle(*pr.Title)
 

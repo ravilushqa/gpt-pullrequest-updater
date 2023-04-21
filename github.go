@@ -22,22 +22,32 @@ func NewGithubClient(ctx context.Context, token string) *GithubClient {
 	return &GithubClient{github.NewClient(tc)}
 }
 
-func (g *GithubClient) GetPullRequestFiles(ctx context.Context, owner, repo string, prNumber int) ([]*github.CommitFile, error) {
-	files, _, err := g.client.PullRequests.ListFiles(ctx, owner, repo, prNumber, nil)
+func (c *GithubClient) GetPullRequestFiles(ctx context.Context, owner, repo string, prNumber int) ([]*github.CommitFile, error) {
+	files, _, err := c.client.PullRequests.ListFiles(ctx, owner, repo, prNumber, nil)
 	return files, err
 }
 
-func (g *GithubClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (*github.PullRequest, error) {
-	pr, _, err := g.client.PullRequests.Get(ctx, owner, repo, number)
+func (c *GithubClient) GetPullRequest(ctx context.Context, owner, repo string, number int) (*github.PullRequest, error) {
+	pr, _, err := c.client.PullRequests.Get(ctx, owner, repo, number)
 	return pr, err
 }
 
-func (g *GithubClient) GetPullRequestDiff(ctx context.Context, owner, repo string, number int) (string, error) {
-	diff, _, err := g.client.PullRequests.GetRaw(ctx, owner, repo, number, github.RawOptions{Type: github.Diff})
+func (c *GithubClient) GetPullRequestDiff(ctx context.Context, owner, repo string, number int) (string, error) {
+	diff, _, err := c.client.PullRequests.GetRaw(ctx, owner, repo, number, github.RawOptions{Type: github.Diff})
 	return diff, err
 }
 
-func (g *GithubClient) UpdatePullRequest(ctx context.Context, owner, repo string, number int, pr *github.PullRequest) (*github.PullRequest, error) {
-	updatedPR, _, err := g.client.PullRequests.Edit(ctx, owner, repo, number, pr)
+func (c *GithubClient) UpdatePullRequest(ctx context.Context, owner, repo string, number int, pr *github.PullRequest) (*github.PullRequest, error) {
+	updatedPR, _, err := c.client.PullRequests.Edit(ctx, owner, repo, number, pr)
 	return updatedPR, err
+}
+
+func (c *GithubClient) CreateComment(ctx context.Context, owner, repo string, number int, comment *github.PullRequestComment) (*github.PullRequestComment, error) {
+	createdComment, _, err := c.client.PullRequests.CreateComment(ctx, owner, repo, number, comment)
+	return createdComment, err
+}
+
+func (c *GithubClient) CompareCommits(ctx context.Context, owner, repo, base, head string) (*github.CommitsComparison, error) {
+	comp, _, err := c.client.Repositories.CompareCommits(ctx, owner, repo, base, head, nil)
+	return comp, err
 }
