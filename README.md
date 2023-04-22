@@ -80,7 +80,6 @@ on:
    pull_request:
       types:
          - opened
-         - synchronize
 
 jobs:
    update_pr:
