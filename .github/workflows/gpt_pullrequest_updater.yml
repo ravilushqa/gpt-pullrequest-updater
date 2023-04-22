@@ -4,7 +4,7 @@ on:
   pull_request:
     types:
       - opened
-#      - synchronize
+      - synchronize
 
 jobs:
   update_pull_request:
@@ -39,6 +39,7 @@ jobs:
           PR_NUMBER: ${{ github.event.number }}
 
       - name: Review Pull Request
+        if: github.event.action == 'opened'
         run: |
           ./gpt-pullrequest-updater/review
         env:

@@ -80,33 +80,51 @@ on:
    pull_request:
       types:
          - opened
+         - synchronize
 
 jobs:
-   update_pr:
+   update_pull_request:
       runs-on: ubuntu-latest
-      steps:
-         - name: Check out the repository
-           uses: actions/checkout@v2
 
+      steps:
          - name: Set up Go
            uses: actions/setup-go@v2
            with:
               go-version: 1.19
 
-         - name: Build the commands
+         - name: Checkout GPT-PullRequest-Updater
+           uses: actions/checkout@v2
+           with:
+              repository: ravilushqa/gpt-pullrequest-updater
+              path: gpt-pullrequest-updater
+
+         - name: Build description and review commands
            run: |
+              cd gpt-pullrequest-updater
               go build -o description ./cmd/description
               go build -o review ./cmd/review
 
-         - name: Run the GPT Updater
+         - name: Update Pull Request Description
            run: |
-              export GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}
-              export OPENAI_TOKEN=${{ secrets.OPENAI_TOKEN }}
-              export OWNER=${{ github.repository_owner }}
-              export REPO=${{ github.event.repository.name }}
-              export PR_NUMBER=${{ github.event.number }}
-              ./description
-              ./review
+              ./gpt-pullrequest-updater/description
+           env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              OPENAI_TOKEN: ${{ secrets.OPENAI_TOKEN }}
+              OWNER: ${{ github.repository_owner }}
+              REPO: ${{ github.event.repository.name }}
+              PR_NUMBER: ${{ github.event.number }}
+
+         - name: Review Pull Request
+           if: github.event.action == 'opened'
+           run: |
+              ./gpt-pullrequest-updater/review
+           env:
+              GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              OPENAI_TOKEN: ${{ secrets.OPENAI_TOKEN }}
+              OWNER: ${{ github.repository_owner }}
+              REPO: ${{ github.event.repository.name }}
+              PR_NUMBER: ${{ github.event.number }}
+
 ```
 
 Make sure to add your OpenAI API token to your repository secrets as `OPENAI_TOKEN`.
