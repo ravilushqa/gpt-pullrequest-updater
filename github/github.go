@@ -7,8 +7,6 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const baseGithubURL = "https://api.github.com"
-
 type Client struct {
 	client *github.Client
 }
