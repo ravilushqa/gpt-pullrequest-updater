@@ -1,55 +1,69 @@
-# Pull Request Description Generator
+# GPT-PullRequest-Updater
 
-This Go program automates the process of generating GitHub pull request descriptions based on the changes made in each file. It uses OpenAI's GPT-3.5-turbo model to generate the descriptions and Jira issue links based on the PR title.
+This repository contains a tool for updating and reviewing GitHub pull requests using OpenAI's GPT language model. The project has two commands: `description` and `review`. The `description` command updates the pull request description with a high-level summary of the changes made. The `review` command creates individual comments for each file and an overall review summary comment.
+
+## Requirements
+
+- GitHub token with access to the desired repository
+- OpenAI API token
 
 ## Installation
 
-To install the program, clone the repository and build the binary:
+1. Clone the repository:
 
-```sh
-git clone https://github.com/your-repo/pull-request-description-generator.git
-cd pull-request-description-generator
-go build
-```
+   ```
+   git clone https://github.com/ravilushqa/gpt-pullrequest-updater.git
+   ```
+
+2. Navigate to the project root:
+
+   ```
+   cd gpt-pullrequest-updater
+   ```
+
+3. Build the commands:
+
+   ```
+   go build -o description ./cmd/description
+   go build -o review ./cmd/review
+   ```
 
 ## Usage
 
-Before running the program, you'll need to set the following environment variables:
+Before running the commands, make sure you have set the following environment variables:
 
-- `GITHUB_TOKEN`: Your GitHub access token.
-- `OPENAI_TOKEN`: Your OpenAI access token.
-- `OWNER`: The GitHub owner (username or organization) of the repository.
-- `REPO`: The GitHub repository name.
-- `PR_NUMBER`: The pull request number.
+- `GITHUB_TOKEN`: Your GitHub token
+- `OPENAI_TOKEN`: Your OpenAI API token
+- `OWNER`: The owner of the GitHub repository
+- `REPO`: The name of the GitHub repository
+- `PR_NUMBER`: The pull request number you want to update or review
 
-You can also use flags to provide the required information:
+### Description Command
+
+The `description` command updates the pull request description with a high-level summary of the changes made. To run the command, execute:
 
 ```
-./pull-request-description-generator --gh-token <GITHUB_TOKEN> --openai-token <OPENAI_TOKEN> --owner <OWNER> --repo <REPO> --pr-number <PR_NUMBER>
+./description
 ```
 
-Optional flags:
+### Review Command
 
-- `--test`: Test mode. The generated description will be printed to the console without updating the pull request.
-- `--skip-files`: Comma-separated list of files to skip when generating the description (default: "go.mod,go.sum,.pb.go").
+The `review` command creates individual comments for each file and an overall review summary comment. To run the command, execute:
 
-After running the program, the pull request description will be updated with the generated content.
+```
+./review
+```
 
-## Dependencies
+### Test Mode
 
-- [go-flags](https://github.com/jessevdk/go-flags): A Go library for command line flag parsing.
-- [go-openai](https://github.com/sashabaranov/go-openai): A Go client for the OpenAI API.
+Both commands support a test mode that prints the generated content to the console instead of updating the pull request. To enable test mode, set the `TEST` environment variable to `true`:
 
-## Functions
+```
+export TEST=true
+```
 
-- `getDiffContent`: Fetches the diff content from the GitHub API.
-- `parseGitDiffAndSplitPerFile`: Parses the git diff and splits it into a slice of FileDiff.
-- `getFilenameFromDiffHeader`: Extracts the filename from a diff header.
-- `generatePRDescription`: Generates the pull request description using the OpenAI API.
-- `getPullRequestTitle`: Fetches the pull request title from the GitHub API.
-- `generateJiraLinkByTitle`: Generates a Jira issue link based on the PR title.
-- `updatePullRequestDescription`: Updates the pull request description on GitHub.
+Then, run the desired command as described above. The generated content will be printed to the console.
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License.
