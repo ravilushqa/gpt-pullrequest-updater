@@ -57,6 +57,11 @@ func run(ctx context.Context) error {
 	var OverallDescribeCompletion string
 	OverallDescribeCompletion += fmt.Sprintf("Pull request title: %s, body: %s\n\n", pr.GetTitle(), pr.GetBody())
 	for _, file := range diff.Files {
+
+		if file.Patch == nil {
+			continue
+		}
+
 		prompt := fmt.Sprintf(oAIClient.PromptDescribeChanges, *file.Patch)
 
 		if len(prompt) > 4096 {
