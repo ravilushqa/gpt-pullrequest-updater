@@ -82,9 +82,10 @@ func run(ctx context.Context) error {
 		fmt.Println("Adding Jira ticket")
 		id, err := jira.ExtractJiraTicketID(*pr.Title)
 		if err != nil {
-			return err
+			fmt.Printf("Error extracting Jira ticket ID: %v \n", err)
+		} else {
+			completion = fmt.Sprintf("### JIRA ticket: [%s](%s) \n\n%s", id, jira.GenerateJiraTicketURL(opts.JiraURL, id), completion)
 		}
-		completion = fmt.Sprintf("### JIRA ticket: [%s](%s) \n\n%s", id, jira.GenerateJiraTicketURL(opts.JiraURL, id), completion)
 	}
 
 	if opts.Test {
