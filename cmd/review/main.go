@@ -61,6 +61,10 @@ func run(ctx context.Context) error {
 			continue
 		}
 
+		if file.Patch == nil {
+			continue
+		}
+
 		prompt := fmt.Sprintf(oAIClient.PromptReview, *file.Patch)
 
 		if len(prompt) > 4096 {
