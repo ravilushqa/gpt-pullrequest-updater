@@ -154,6 +154,7 @@ func genCompletionPerFile(ctx context.Context, client *oAIClient.Client, diff *g
 		OverallDescribeCompletion += fmt.Sprintf("File: %s \nDescription: %s \n\n", file.GetFilename(), completion)
 	}
 
+	fmt.Println("Sending final prompt to OpenAI")
 	overallCompletion, err := client.ChatCompletion(ctx, []openai.ChatCompletionMessage{
 		{
 			Role:    openai.ChatMessageRoleUser,
