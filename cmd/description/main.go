@@ -111,6 +111,10 @@ func genCompletionOnce(ctx context.Context, client *oAIClient.Client, diff *gith
 		Content: oAIClient.PromptDescribeChanges,
 	})
 	for _, file := range diff.Files {
+		if file.Patch == nil {
+			continue
+		}
+
 		messages = append(messages, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleUser,
 			Content: *file.Patch,
