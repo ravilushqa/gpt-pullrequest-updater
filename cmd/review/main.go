@@ -57,11 +57,7 @@ func run(ctx context.Context) error {
 
 	var OverallReviewCompletion string
 	for _, file := range diff.Files {
-		if file.GetStatus() == "removed" || file.GetStatus() == "renamed" {
-			continue
-		}
-
-		if file.Patch == nil {
+		if file.Patch == nil || file.GetStatus() == "removed" || file.GetStatus() == "renamed" {
 			continue
 		}
 
