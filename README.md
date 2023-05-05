@@ -65,7 +65,7 @@ Replace `<GITHUB_TOKEN>`, `<OPENAI_TOKEN>`, `<OWNER>`, `<REPO>`, and `<PR_NUMBER
 ### Description Command
 
 The usage for the `description` command is similar to the `review` command. Replace `review` with `description` in the command above and execute.
-
+Only difference is that `description` command has extra option `--jira-url` which is used to generate Jira links in the description.
 
 ## GitHub Action
 
