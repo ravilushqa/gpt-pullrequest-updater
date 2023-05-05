@@ -23,7 +23,7 @@ var opts struct {
 	Repo        string `long:"repo" env:"REPO" description:"GitHub repo" required:"true"`
 	PRNumber    int    `long:"pr-number" env:"PR_NUMBER" description:"Pull request number" required:"true"`
 	Test        bool   `long:"test" env:"TEST" description:"Test mode"`
-	JiraURL     string `long:"jira-url" env:"JIRA_URL" description:"Jira URL"`
+	JiraURL     string `long:"jira-url" env:"JIRA_URL" description:"Jira URL. Example: https://jira.atlassian.com"`
 }
 
 func main() {
