@@ -40,9 +40,10 @@ func processFiles(ctx context.Context, openAIClient *oAIClient.Client, diff *git
 			continue
 		}
 
-		if len(patch) > 3000 {
+		maxLength := 4096 - len(oAIClient.PromptReview)
+		if len(patch) > maxLength {
 			fmt.Println("Patch is too long, truncating")
-			patch = fmt.Sprintf("%s...", patch[:3000])
+			patch = fmt.Sprintf("%s...", patch[:maxLength])
 		}
 		completion, err := openAIClient.ChatCompletion(ctx, []openai.ChatCompletionMessage{
 			{
@@ -71,7 +72,10 @@ func processFiles(ctx context.Context, openAIClient *oAIClient.Client, diff *git
 			fmt.Println("Review is good")
 			continue
 		}
-		for _, issue := range review.Issues {
+		for i, issue := range review.Issues {
+			if issue.Line == 0 {
+				issue.Line = i + 1
+			}
 			body := fmt.Sprintf("[%s] %s", issue.Type, issue.Description)
 			comment := &github.PullRequestComment{
 				CommitID: diff.Commits[len(diff.Commits)-1].SHA,
