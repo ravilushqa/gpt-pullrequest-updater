@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"fmt"
+	"time"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -37,8 +38,21 @@ func (o *Client) ChatCompletion(ctx context.Context, messages []openai.ChatCompl
 	)
 
 	if err != nil {
-		fmt.Printf("ChatCompletion error: %v\n", err)
-		return "", err
+		fmt.Println("Error completing prompt:", err)
+		fmt.Println("Retrying after 1 minute")
+		// retry once after 1 minute
+		time.Sleep(time.Minute)
+		resp, err = o.client.CreateChatCompletion(
+			ctx,
+			openai.ChatCompletionRequest{
+				Model:       openai.GPT3Dot5Turbo,
+				Messages:    messages,
+				Temperature: 0.1,
+			},
+		)
+		if err != nil {
+			return "", fmt.Errorf("error completing prompt: %w", err)
+		}
 	}
 
 	return resp.Choices[0].Message.Content, nil

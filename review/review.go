@@ -79,9 +79,10 @@ func GenerateCommentsFromDiff(ctx context.Context, openAIClient Completer, diff 
 			fmt.Println("Review is good")
 			continue
 		}
-		for i, issue := range review.Issues {
+		for _, issue := range review.Issues {
 			if issue.Line == 0 {
-				issue.Line = i + 1
+				fmt.Printf("Skipping file-level issue: %v\n", issue)
+				continue // TODO: add support for file-level issues
 			}
 			body := fmt.Sprintf("[%s] %s", issue.Type, issue.Description)
 			comment := &github.PullRequestComment{
@@ -101,7 +102,7 @@ func PushComments(ctx context.Context, prUpdated PullRequestUpdater, owner, repo
 	for i, c := range comments {
 		fmt.Printf("creating comment: %s %d/%d\n", *c.Path, i+1, len(comments))
 		if _, err := prUpdated.CreatePullRequestComment(ctx, owner, repo, number, c); err != nil {
-			return fmt.Errorf("error creating comment: %w", err)
+			return fmt.Errorf("error creating comment: %w\n%+v\n", err, *c)
 		}
 	}
 	return nil
