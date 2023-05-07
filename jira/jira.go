@@ -5,7 +5,7 @@ import (
 	"regexp"
 )
 
-const ticketURLFormat = "%s/browse/%s"
+const ticketUrlFormat = "%s/browse/%s"
 
 // ExtractJiraTicketID returns the first JIRA ticket ID found in the input string.
 func ExtractJiraTicketID(s string) (string, error) {
@@ -25,5 +25,5 @@ func ExtractJiraTicketID(s string) (string, error) {
 }
 
 func GenerateJiraTicketURL(jiraURL, ticketID string) string {
-	return fmt.Sprintf(ticketURLFormat, jiraURL, ticketID)
+	return fmt.Sprintf(ticketUrlFormat, jiraURL, ticketID)
 }

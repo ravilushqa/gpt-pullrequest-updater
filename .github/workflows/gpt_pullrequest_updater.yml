@@ -25,11 +25,12 @@ jobs:
       - name: Build description and review commands
         run: |
           cd gpt-pullrequest-updater
-          make build
+          go build -o description ./cmd/description
+          go build -o review ./cmd/review
 
       - name: Update Pull Request Description
         run: |
-          ./gpt-pullrequest-updater/bin/description
+          ./gpt-pullrequest-updater/description
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_TOKEN: ${{ secrets.OPENAI_TOKEN }}
@@ -40,7 +41,7 @@ jobs:
       - name: Review Pull Request
         if: github.event.action == 'opened'
         run: |
-          ./gpt-pullrequest-updater/bin/review
+          ./gpt-pullrequest-updater/review
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENAI_TOKEN: ${{ secrets.OPENAI_TOKEN }}
