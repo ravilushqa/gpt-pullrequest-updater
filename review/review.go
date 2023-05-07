@@ -1,4 +1,4 @@
-package main
+package review
 
 import (
 	"context"
@@ -7,9 +7,16 @@ import (
 	"github.com/google/go-github/v51/github"
 	"github.com/sashabaranov/go-openai"
 
-	ghClient "github.com/ravilushqa/gpt-pullrequest-updater/github"
 	oAIClient "github.com/ravilushqa/gpt-pullrequest-updater/openai"
 )
+
+type PullRequestUpdater interface {
+	CreatePullRequestComment(ctx context.Context, owner, repo string, number int, comment *github.PullRequestComment) (*github.PullRequestComment, error)
+}
+
+type Completer interface {
+	ChatCompletion(ctx context.Context, messages []openai.ChatCompletionMessage) (string, error)
+}
 
 type Review struct {
 	Quality Quality `json:"quality"`
@@ -30,7 +37,7 @@ const (
 	Neutral Quality = "neutral"
 )
 
-func processFiles(ctx context.Context, openAIClient *oAIClient.Client, diff *github.CommitsComparison) ([]*github.PullRequestComment, error) {
+func GenerateCommentsFromDiff(ctx context.Context, openAIClient Completer, diff *github.CommitsComparison) ([]*github.PullRequestComment, error) {
 	var comments []*github.PullRequestComment
 
 	for i, file := range diff.Files {
@@ -72,9 +79,10 @@ func processFiles(ctx context.Context, openAIClient *oAIClient.Client, diff *git
 			fmt.Println("Review is good")
 			continue
 		}
-		for i, issue := range review.Issues {
+		for _, issue := range review.Issues {
 			if issue.Line == 0 {
-				issue.Line = i + 1
+				fmt.Printf("Skipping file-level issue: %v\n", issue)
+				continue // TODO: add support for file-level issues
 			}
 			body := fmt.Sprintf("[%s] %s", issue.Type, issue.Description)
 			comment := &github.PullRequestComment{
@@ -90,11 +98,11 @@ func processFiles(ctx context.Context, openAIClient *oAIClient.Client, diff *git
 	return comments, nil
 }
 
-func createComments(ctx context.Context, githubClient *ghClient.Client, comments []*github.PullRequestComment) error {
+func PushComments(ctx context.Context, prUpdated PullRequestUpdater, owner, repo string, number int, comments []*github.PullRequestComment) error {
 	for i, c := range comments {
 		fmt.Printf("creating comment: %s %d/%d\n", *c.Path, i+1, len(comments))
-		if _, err := githubClient.CreatePullRequestComment(ctx, opts.Owner, opts.Repo, opts.PRNumber, c); err != nil {
-			return fmt.Errorf("error creating comment: %w", err)
+		if _, err := prUpdated.CreatePullRequestComment(ctx, owner, repo, number, c); err != nil {
+			fmt.Printf("error creating comment: %s\n%+v", err, *c) // TODO: return error instead of printing
 		}
 	}
 	return nil
