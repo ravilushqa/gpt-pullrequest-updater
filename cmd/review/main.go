@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -64,9 +65,9 @@ func run(ctx context.Context) error {
 			continue
 		}
 
-		if len(patch) > 4096 {
+		if len(patch) > 3000 {
 			fmt.Println("Patch is too long, truncating")
-			patch = fmt.Sprintf("%s...", patch[:4093])
+			patch = fmt.Sprintf("%s...", patch[:3000])
 		}
 		completion, err := openAIClient.ChatCompletion(ctx, []openai.ChatCompletionMessage{
 			{
@@ -87,10 +88,9 @@ func run(ctx context.Context) error {
 			fmt.Println("Completion:", completion)
 		}
 
-		review := Review{}
-		err = json.Unmarshal([]byte(completion), &review)
+		review, err := extractJSON(completion)
 		if err != nil {
-			fmt.Println("Error unmarshalling completion:", err)
+			fmt.Println("Error extracting JSON:", err)
 			continue
 		}
 
@@ -124,9 +124,8 @@ func run(ctx context.Context) error {
 }
 
 type Review struct {
-	Quality     Quality `json:"quality"`
-	Explanation string  `json:"explanation"`
-	Issues      []struct {
+	Quality Quality `json:"quality"`
+	Issues  []struct {
 		Type        string `json:"type"`
 		Line        int    `json:"line"`
 		Description string `json:"description"`
@@ -140,3 +139,39 @@ const (
 	Bad     Quality = "bad"
 	Neutral Quality = "neutral"
 )
+
+func extractJSON(input string) (*Review, error) {
+	var jsonObj *Review
+
+	// find the start and end positions of the JSON object
+	start := 0
+	end := len(input)
+	for i, c := range input {
+		if c == '{' {
+			start = i
+			break
+		}
+		if i == len(input)-1 {
+			return nil, errors.New("invalid JSON object")
+		}
+	}
+	for i := len(input) - 1; i >= 0; i-- {
+		if input[i] == '}' {
+			end = i + 1
+			break
+		}
+
+		if i == 0 {
+			return nil, errors.New("invalid JSON object")
+		}
+	}
+
+	// extract the JSON object from the input
+	jsonStr := input[start:end]
+	err := json.Unmarshal([]byte(jsonStr), &jsonObj)
+	if err != nil {
+		return nil, errors.New("invalid JSON object")
+	}
+
+	return jsonObj, nil
+}
