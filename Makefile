@@ -1,5 +1,9 @@
 .PHONY: init-tools lint test test-coverage precommit help
 
+build:
+	go build -o bin/description ./cmd/description && \
+	go build -o bin/review      ./cmd/review
+
 # run this once to install tools required for development.
 init-tools:
 	cd tools && \
