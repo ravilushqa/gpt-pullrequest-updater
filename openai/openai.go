@@ -32,7 +32,7 @@ func (o *Client) ChatCompletion(ctx context.Context, messages []openai.ChatCompl
 		openai.ChatCompletionRequest{
 			Model:       openai.GPT3Dot5Turbo,
 			Messages:    messages,
-			Temperature: 0,
+			Temperature: 0.1,
 		},
 	)
 
