@@ -59,9 +59,7 @@ func processFiles(ctx context.Context, openAIClient *oAIClient.Client, diff *git
 			return nil, fmt.Errorf("error getting completion: %w", err)
 		}
 
-		if opts.Test {
-			fmt.Println("Completion:", completion)
-		}
+		fmt.Println("Completion:", completion)
 
 		review, err := extractReviewFromString(completion)
 		if err != nil {
