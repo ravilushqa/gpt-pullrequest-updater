@@ -102,7 +102,7 @@ func PushComments(ctx context.Context, prUpdated PullRequestUpdater, owner, repo
 	for i, c := range comments {
 		fmt.Printf("creating comment: %s %d/%d\n", *c.Path, i+1, len(comments))
 		if _, err := prUpdated.CreatePullRequestComment(ctx, owner, repo, number, c); err != nil {
-			return fmt.Errorf("error creating comment: %w\n%+v\n", err, *c)
+			fmt.Printf("error creating comment: %s\n%+v", err, *c) // TODO: return error instead of printing
 		}
 	}
 	return nil
