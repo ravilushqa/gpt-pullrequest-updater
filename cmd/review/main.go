@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strconv"
 	"syscall"
 
 	"github.com/google/go-github/v51/github"
@@ -59,23 +58,27 @@ func run(ctx context.Context) error {
 	var comments []*github.PullRequestComment
 
 	for i, file := range diff.Files {
+		patch := file.GetPatch()
 		fmt.Printf("processing file: %s %d/%d\n", file.GetFilename(), i+1, len(diff.Files))
-		if file.Patch == nil || file.GetStatus() == "removed" || file.GetStatus() == "renamed" {
+		if patch == "" || file.GetStatus() == "removed" || file.GetStatus() == "renamed" {
 			continue
 		}
 
-		prompt := fmt.Sprintf(oAIClient.PromptReview, oAIClient.JsonReviewPrompt, *file.Patch)
-
-		if len(prompt) > 4096 {
-			prompt = fmt.Sprintf("%s...", prompt[:4093])
+		if len(patch) > 4096 {
+			fmt.Println("Patch is too long, truncating")
+			patch = fmt.Sprintf("%s...", patch[:4093])
 		}
-
 		completion, err := openAIClient.ChatCompletion(ctx, []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
-				Content: prompt,
+				Content: oAIClient.PromptReview,
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: patch,
 			},
 		})
+
 		if err != nil {
 			return fmt.Errorf("error getting completion: %w", err)
 		}
@@ -95,18 +98,13 @@ func run(ctx context.Context) error {
 			fmt.Println("Review is good")
 			continue
 		}
-		for _, c := range review.Comments {
-			lineNumber, err := strconv.Atoi(c.LineNumber)
-			if err != nil {
-				fmt.Println("Error parsing line number:", err)
-				continue
-			}
-
+		for _, issue := range review.Issues {
+			body := fmt.Sprintf("[%s] %s", issue.Type, issue.Description)
 			comment := &github.PullRequestComment{
 				CommitID: diff.Commits[len(diff.Commits)-1].SHA,
 				Path:     file.Filename,
-				Body:     &c.Comment,
-				Position: &lineNumber,
+				Body:     &body,
+				Position: &issue.Line,
 			}
 			comments = append(comments, comment)
 		}
@@ -128,10 +126,11 @@ func run(ctx context.Context) error {
 type Review struct {
 	Quality     Quality `json:"quality"`
 	Explanation string  `json:"explanation"`
-	Comments    []struct {
-		LineNumber string `json:"line_number_string"`
-		Comment    string `json:"comment"`
-	}
+	Issues      []struct {
+		Type        string `json:"type"`
+		Line        int    `json:"line"`
+		Description string `json:"description"`
+	} `json:"issues"`
 }
 
 type Quality string
