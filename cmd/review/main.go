@@ -11,7 +11,17 @@ import (
 
 	ghClient "github.com/ravilushqa/gpt-pullrequest-updater/github"
 	oAIClient "github.com/ravilushqa/gpt-pullrequest-updater/openai"
+	"github.com/ravilushqa/gpt-pullrequest-updater/review"
 )
+
+var opts struct {
+	GithubToken string `long:"gh-token" env:"GITHUB_TOKEN" description:"GitHub token" required:"true"`
+	OpenAIToken string `long:"openai-token" env:"OPENAI_TOKEN" description:"OpenAI token" required:"true"`
+	Owner       string `long:"owner" env:"OWNER" description:"GitHub owner" required:"true"`
+	Repo        string `long:"repo" env:"REPO" description:"GitHub repo" required:"true"`
+	PRNumber    int    `long:"pr-number" env:"PR_NUMBER" description:"Pull request number" required:"true"`
+	Test        bool   `long:"test" env:"TEST" description:"Test mode"`
+}
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -43,16 +53,17 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("error getting commits: %w", err)
 	}
 
-	comments, err := processFiles(ctx, openAIClient, diff)
+	comments, err := review.GenerateCommentsFromDiff(ctx, openAIClient, diff)
 	if err != nil {
 		return err
 	}
 
 	if opts.Test {
 		fmt.Printf("Comments: %v \n", comments)
+		return nil
 	}
 
-	err = createComments(ctx, githubClient, comments)
+	err = review.PushComments(ctx, githubClient, opts.Owner, opts.Repo, opts.PRNumber, comments)
 	if err != nil {
 		return fmt.Errorf("error creating comments: %w", err)
 	}

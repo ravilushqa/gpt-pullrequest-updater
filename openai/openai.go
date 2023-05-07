@@ -8,7 +8,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
-//go:embed prompt-review.txt
+//go:embed prompts/review
 var PromptReview string
 
 const (
