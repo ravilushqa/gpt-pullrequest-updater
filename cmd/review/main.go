@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/google/go-github/v51/github"
@@ -55,69 +56,122 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("error getting commits: %w", err)
 	}
 
-	var OverallReviewCompletion string
-	for _, file := range diff.Files {
-		if file.Patch == nil || file.GetStatus() == "removed" || file.GetStatus() == "renamed" {
+	var comments []*github.PullRequestComment
+
+	for i, file := range diff.Files {
+		patch := file.GetPatch()
+		fmt.Printf("processing file: %s %d/%d\n", file.GetFilename(), i+1, len(diff.Files))
+		if patch == "" || file.GetStatus() == "removed" || file.GetStatus() == "renamed" {
 			continue
 		}
 
-		prompt := fmt.Sprintf(oAIClient.PromptReview, *file.Patch)
-
-		if len(prompt) > 4096 {
-			prompt = fmt.Sprintf("%s...", prompt[:4093])
+		if len(patch) > 3000 {
+			fmt.Println("Patch is too long, truncating")
+			patch = fmt.Sprintf("%s...", patch[:3000])
 		}
-
 		completion, err := openAIClient.ChatCompletion(ctx, []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleUser,
-				Content: prompt,
+				Content: oAIClient.PromptReview,
+			},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: patch,
 			},
 		})
+
 		if err != nil {
-			return fmt.Errorf("error getting review: %w", err)
+			return fmt.Errorf("error getting completion: %w", err)
 		}
-		OverallReviewCompletion += fmt.Sprintf("File: %s \nReview: %s \n\n", file.GetFilename(), completion)
 
-		position := len(strings.Split(*file.Patch, "\n")) - 1
+		if opts.Test {
+			fmt.Println("Completion:", completion)
+		}
 
-		comment := &github.PullRequestComment{
-			CommitID: diff.Commits[len(diff.Commits)-1].SHA,
-			Path:     file.Filename,
-			Body:     &completion,
-			Position: &position,
+		review, err := extractJSON(completion)
+		if err != nil {
+			fmt.Println("Error extracting JSON:", err)
+			continue
+		}
+
+		if review.Quality == Good {
+			fmt.Println("Review is good")
+			continue
+		}
+		for _, issue := range review.Issues {
+			body := fmt.Sprintf("[%s] %s", issue.Type, issue.Description)
+			comment := &github.PullRequestComment{
+				CommitID: diff.Commits[len(diff.Commits)-1].SHA,
+				Path:     file.Filename,
+				Body:     &body,
+				Position: &issue.Line,
+			}
+			comments = append(comments, comment)
 		}
 
 		if opts.Test {
 			continue
 		}
 
-		if _, err := githubClient.CreatePullRequestComment(ctx, opts.Owner, opts.Repo, opts.PRNumber, comment); err != nil {
-			return fmt.Errorf("error creating comment: %w", err)
+		for i, c := range comments {
+			fmt.Printf("creating comment: %s %d/%d\n", *c.Path, i+1, len(comments))
+			if _, err := githubClient.CreatePullRequestComment(ctx, opts.Owner, opts.Repo, opts.PRNumber, c); err != nil {
+				return fmt.Errorf("error creating comment: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type Review struct {
+	Quality Quality `json:"quality"`
+	Issues  []struct {
+		Type        string `json:"type"`
+		Line        int    `json:"line"`
+		Description string `json:"description"`
+	} `json:"issues"`
+}
+
+type Quality string
+
+const (
+	Good    Quality = "good"
+	Bad     Quality = "bad"
+	Neutral Quality = "neutral"
+)
+
+func extractJSON(input string) (*Review, error) {
+	var jsonObj *Review
+
+	// find the start and end positions of the JSON object
+	start := 0
+	end := len(input)
+	for i, c := range input {
+		if c == '{' {
+			start = i
+			break
+		}
+		if i == len(input)-1 {
+			return nil, errors.New("invalid JSON object")
+		}
+	}
+	for i := len(input) - 1; i >= 0; i-- {
+		if input[i] == '}' {
+			end = i + 1
+			break
+		}
+
+		if i == 0 {
+			return nil, errors.New("invalid JSON object")
 		}
 	}
 
-	overallCompletion, err := openAIClient.ChatCompletion(ctx, []openai.ChatCompletionMessage{
-		{
-			Role:    openai.ChatMessageRoleUser,
-			Content: fmt.Sprintf(oAIClient.PromptOverallReview, OverallReviewCompletion),
-		},
-	})
+	// extract the JSON object from the input
+	jsonStr := input[start:end]
+	err := json.Unmarshal([]byte(jsonStr), &jsonObj)
 	if err != nil {
-		return fmt.Errorf("error getting overall review: %w", err)
+		return nil, errors.New("invalid JSON object")
 	}
 
-	if opts.Test {
-		fmt.Println(OverallReviewCompletion)
-		fmt.Println("=====================================")
-		fmt.Println(overallCompletion)
-
-		return nil
-	}
-
-	comment := &github.PullRequestReviewRequest{Body: &overallCompletion}
-	if _, err = githubClient.CreateReview(ctx, opts.Owner, opts.Repo, opts.PRNumber, comment); err != nil {
-		return fmt.Errorf("error creating comment: %w", err)
-	}
-
-	return nil
+	return jsonObj, nil
 }
