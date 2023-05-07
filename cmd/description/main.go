@@ -62,6 +62,9 @@ func run(ctx context.Context) error {
 
 	var sumDiffs int
 	for _, file := range diff.Files {
+		if file.Patch == nil {
+			continue
+		}
 		sumDiffs += len(*file.Patch)
 	}
 
