@@ -1,4 +1,4 @@
-package review
+package main
 
 import (
 	"context"
@@ -7,16 +7,9 @@ import (
 	"github.com/google/go-github/v51/github"
 	"github.com/sashabaranov/go-openai"
 
+	ghClient "github.com/ravilushqa/gpt-pullrequest-updater/github"
 	oAIClient "github.com/ravilushqa/gpt-pullrequest-updater/openai"
 )
-
-type PullRequestUpdater interface {
-	CreatePullRequestComment(ctx context.Context, owner, repo string, number int, comment *github.PullRequestComment) (*github.PullRequestComment, error)
-}
-
-type Completer interface {
-	ChatCompletion(ctx context.Context, messages []openai.ChatCompletionMessage) (string, error)
-}
 
 type Review struct {
 	Quality Quality `json:"quality"`
@@ -37,7 +30,7 @@ const (
 	Neutral Quality = "neutral"
 )
 
-func GenerateCommentsFromDiff(ctx context.Context, openAIClient Completer, diff *github.CommitsComparison) ([]*github.PullRequestComment, error) {
+func processFiles(ctx context.Context, openAIClient *oAIClient.Client, diff *github.CommitsComparison) ([]*github.PullRequestComment, error) {
 	var comments []*github.PullRequestComment
 
 	for i, file := range diff.Files {
@@ -97,10 +90,10 @@ func GenerateCommentsFromDiff(ctx context.Context, openAIClient Completer, diff 
 	return comments, nil
 }
 
-func PushComments(ctx context.Context, prUpdated PullRequestUpdater, owner, repo string, number int, comments []*github.PullRequestComment) error {
+func createComments(ctx context.Context, githubClient *ghClient.Client, comments []*github.PullRequestComment) error {
 	for i, c := range comments {
 		fmt.Printf("creating comment: %s %d/%d\n", *c.Path, i+1, len(comments))
-		if _, err := prUpdated.CreatePullRequestComment(ctx, owner, repo, number, c); err != nil {
+		if _, err := githubClient.CreatePullRequestComment(ctx, opts.Owner, opts.Repo, opts.PRNumber, c); err != nil {
 			return fmt.Errorf("error creating comment: %w", err)
 		}
 	}
