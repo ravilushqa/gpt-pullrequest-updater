@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
+	"strconv"
 	"syscall"
 
 	"github.com/google/go-github/v51/github"
@@ -55,13 +56,15 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("error getting commits: %w", err)
 	}
 
-	var OverallReviewCompletion string
-	for _, file := range diff.Files {
+	var comments []*github.PullRequestComment
+
+	for i, file := range diff.Files {
+		fmt.Printf("processing file: %s %d/%d\n", file.GetFilename(), i+1, len(diff.Files))
 		if file.Patch == nil || file.GetStatus() == "removed" || file.GetStatus() == "renamed" {
 			continue
 		}
 
-		prompt := fmt.Sprintf(oAIClient.PromptReview, *file.Patch)
+		prompt := fmt.Sprintf(oAIClient.PromptReview, oAIClient.JsonReviewPrompt, *file.Patch)
 
 		if len(prompt) > 4096 {
 			prompt = fmt.Sprintf("%s...", prompt[:4093])
@@ -74,50 +77,67 @@ func run(ctx context.Context) error {
 			},
 		})
 		if err != nil {
-			return fmt.Errorf("error getting review: %w", err)
+			return fmt.Errorf("error getting completion: %w", err)
 		}
-		OverallReviewCompletion += fmt.Sprintf("File: %s \nReview: %s \n\n", file.GetFilename(), completion)
 
-		position := len(strings.Split(*file.Patch, "\n")) - 1
+		if opts.Test {
+			fmt.Println("Completion:", completion)
+		}
 
-		comment := &github.PullRequestComment{
-			CommitID: diff.Commits[len(diff.Commits)-1].SHA,
-			Path:     file.Filename,
-			Body:     &completion,
-			Position: &position,
+		review := Review{}
+		err = json.Unmarshal([]byte(completion), &review)
+		if err != nil {
+			fmt.Println("Error unmarshalling completion:", err)
+			continue
+		}
+
+		if review.Quality == Good {
+			fmt.Println("Review is good")
+			continue
+		}
+		for _, c := range review.Comments {
+			lineNumber, err := strconv.Atoi(c.LineNumber)
+			if err != nil {
+				fmt.Println("Error parsing line number:", err)
+				continue
+			}
+
+			comment := &github.PullRequestComment{
+				CommitID: diff.Commits[len(diff.Commits)-1].SHA,
+				Path:     file.Filename,
+				Body:     &c.Comment,
+				Position: &lineNumber,
+			}
+			comments = append(comments, comment)
 		}
 
 		if opts.Test {
 			continue
 		}
 
-		if _, err := githubClient.CreatePullRequestComment(ctx, opts.Owner, opts.Repo, opts.PRNumber, comment); err != nil {
-			return fmt.Errorf("error creating comment: %w", err)
+		for i, c := range comments {
+			fmt.Printf("creating comment: %s %d/%d\n", *c.Path, i+1, len(comments))
+			if _, err := githubClient.CreatePullRequestComment(ctx, opts.Owner, opts.Repo, opts.PRNumber, c); err != nil {
+				return fmt.Errorf("error creating comment: %w", err)
+			}
 		}
 	}
-
-	overallCompletion, err := openAIClient.ChatCompletion(ctx, []openai.ChatCompletionMessage{
-		{
-			Role:    openai.ChatMessageRoleUser,
-			Content: fmt.Sprintf(oAIClient.PromptOverallReview, OverallReviewCompletion),
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("error getting overall review: %w", err)
-	}
-
-	if opts.Test {
-		fmt.Println(OverallReviewCompletion)
-		fmt.Println("=====================================")
-		fmt.Println(overallCompletion)
-
-		return nil
-	}
-
-	comment := &github.PullRequestReviewRequest{Body: &overallCompletion}
-	if _, err = githubClient.CreateReview(ctx, opts.Owner, opts.Repo, opts.PRNumber, comment); err != nil {
-		return fmt.Errorf("error creating comment: %w", err)
-	}
-
 	return nil
 }
+
+type Review struct {
+	Quality     Quality `json:"quality"`
+	Explanation string  `json:"explanation"`
+	Comments    []struct {
+		LineNumber string `json:"line_number_string"`
+		Comment    string `json:"comment"`
+	}
+}
+
+type Quality string
+
+const (
+	Good    Quality = "good"
+	Bad     Quality = "bad"
+	Neutral Quality = "neutral"
+)

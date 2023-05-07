@@ -1,0 +1,10 @@
+{
+  "quality": "good, bad, or neutral",
+  "explanation": "explanation of the quality",
+  "comments": [
+    {
+      "comment": "reasoning for the comment",
+      "line_number_string": "line number of the comment. 0 if not applicable. number should be unique. must be a string"
+    }
+  ]
+}
