@@ -72,7 +72,6 @@ func run(ctx context.Context) error {
 	}
 
 	if opts.Test {
-		fmt.Println(completion)
 		return nil
 	}
 

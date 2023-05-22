@@ -54,7 +54,7 @@ func GenerateCommentsFromDiff(ctx context.Context, openAIClient Completer, diff 
 		}
 		completion, err := openAIClient.ChatCompletion(ctx, []openai.ChatCompletionMessage{
 			{
-				Role:    openai.ChatMessageRoleUser,
+				Role:    openai.ChatMessageRoleSystem,
 				Content: oAIClient.PromptReview,
 			},
 			{

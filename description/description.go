@@ -59,6 +59,8 @@ func genCompletionOnce(ctx context.Context, client *oAIClient.Client, diff *gith
 		return "", fmt.Errorf("error completing prompt: %w", err)
 	}
 
+	fmt.Println("Completion:", completion)
+
 	return completion, nil
 }
 
@@ -67,38 +69,51 @@ func genCompletionPerFile(ctx context.Context, client *oAIClient.Client, diff *g
 	OverallDescribeCompletion := fmt.Sprintf("Pull request title: %s, body: %s\n\n", pr.GetTitle(), pr.GetBody())
 
 	for i, file := range diff.Files {
-		if file.Patch == nil {
+		patch := file.GetPatch()
+		if patch == "" {
 			continue
 		}
-		prompt := fmt.Sprintf(oAIClient.PromptDescribeChanges, *file.Patch)
-
-		if len(prompt) > 4096 {
-			prompt = fmt.Sprintf("%s...", prompt[:4093])
+		maxLength := 4096 - len(oAIClient.PromptDescribeChanges)
+		if len(*file.Patch) > maxLength {
+			fmt.Println("Patch is too long, truncating")
+			patch = fmt.Sprintf("%s...", patch[:maxLength])
 		}
 
-		fmt.Printf("Sending prompt to OpenAI for file %d/%d\n", i+1, len(diff.Files))
+		fmt.Printf("processing file: %s %d/%d\n", file.GetFilename(), i+1, len(diff.Files))
 		completion, err := client.ChatCompletion(ctx, []openai.ChatCompletionMessage{
 			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: oAIClient.PromptDescribeChanges,
+			},
+			{
 				Role:    openai.ChatMessageRoleUser,
-				Content: prompt,
+				Content: patch,
 			},
 		})
 		if err != nil {
 			return "", fmt.Errorf("error getting review: %w", err)
 		}
+		fmt.Println("Completion:", completion)
+
 		OverallDescribeCompletion += fmt.Sprintf("File: %s \nDescription: %s \n\n", file.GetFilename(), completion)
 	}
 
-	fmt.Println("Sending final prompt to OpenAI")
+	fmt.Println("Summarizing overall completion")
 	overallCompletion, err := client.ChatCompletion(ctx, []openai.ChatCompletionMessage{
 		{
+			Role:    openai.ChatMessageRoleSystem,
+			Content: oAIClient.PromptDescribeOverall,
+		},
+		{
 			Role:    openai.ChatMessageRoleUser,
-			Content: fmt.Sprintf(oAIClient.PromptDescribeOverall, OverallDescribeCompletion),
+			Content: OverallDescribeCompletion,
 		},
 	})
 	if err != nil {
 		return "", fmt.Errorf("error completing final prompt: %w", err)
 	}
+
+	fmt.Println("Overall completion:", overallCompletion)
 
 	return overallCompletion, nil
 }

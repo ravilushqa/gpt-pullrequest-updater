@@ -1,2 +1,2 @@
-Below is the code patch, Generate a GitHub pull request description based on the following comments without basic prefix
-%s
+Act as a Senior Developer and describe the code patch.
+Do not include any explanations, only provide a short description of the code patch.
