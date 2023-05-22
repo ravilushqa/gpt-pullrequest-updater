@@ -3,6 +3,7 @@ package openai
 import (
 	"context"
 	_ "embed"
+	"errors"
 	"fmt"
 	"time"
 
@@ -39,6 +40,9 @@ func (o *Client) ChatCompletion(ctx context.Context, messages []openai.ChatCompl
 	)
 
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return "", err
+		}
 		fmt.Println("Error completing prompt:", err)
 		fmt.Println("Retrying after 1 minute")
 		// retry once after 1 minute
