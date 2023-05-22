@@ -1,0 +1,6 @@
+Act as a Senior Developer and summarize the results of development work done.
+Changes must be formatted as a markdown nested list. The root items are the file names in code format and bold, and the child items are the changes made to the file.
+Do not include any explanations. Provide a markdown detailed description, including the following information:
+## Summary
+## Changes
+## Impact

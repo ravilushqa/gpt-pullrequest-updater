@@ -65,7 +65,7 @@ Replace `<GITHUB_TOKEN>`, `<OPENAI_TOKEN>`, `<OWNER>`, `<REPO>`, and `<PR_NUMBER
 ### Description Command
 
 The usage for the `description` command is similar to the `review` command. Replace `review` with `description` in the command above and execute.
-
+Only difference is that `description` command has extra option `--jira-url` which is used to generate Jira links in the description.
 
 ## GitHub Action
 
@@ -101,12 +101,11 @@ jobs:
          - name: Build description and review commands
            run: |
               cd gpt-pullrequest-updater
-              go build -o description ./cmd/description
-              go build -o review ./cmd/review
+              make build
 
          - name: Update Pull Request Description
            run: |
-              ./gpt-pullrequest-updater/description
+              ./gpt-pullrequest-updater/bin/description
            env:
               GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               OPENAI_TOKEN: ${{ secrets.OPENAI_TOKEN }}
@@ -117,7 +116,7 @@ jobs:
          - name: Review Pull Request
            if: github.event.action == 'opened'
            run: |
-              ./gpt-pullrequest-updater/review
+              ./gpt-pullrequest-updater/bin/review
            env:
               GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               OPENAI_TOKEN: ${{ secrets.OPENAI_TOKEN }}

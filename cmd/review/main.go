@@ -5,15 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
-	"github.com/google/go-github/v51/github"
 	"github.com/jessevdk/go-flags"
-	"github.com/sashabaranov/go-openai"
 
 	ghClient "github.com/ravilushqa/gpt-pullrequest-updater/github"
 	oAIClient "github.com/ravilushqa/gpt-pullrequest-updater/openai"
+	"github.com/ravilushqa/gpt-pullrequest-updater/review"
 )
 
 var opts struct {
@@ -55,68 +53,19 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("error getting commits: %w", err)
 	}
 
-	var OverallReviewCompletion string
-	for _, file := range diff.Files {
-		if file.GetStatus() == "removed" || file.GetStatus() == "renamed" {
-			continue
-		}
-
-		prompt := fmt.Sprintf(oAIClient.PromptReview, *file.Patch)
-
-		if len(prompt) > 4096 {
-			prompt = fmt.Sprintf("%s...", prompt[:4093])
-		}
-
-		completion, err := openAIClient.ChatCompletion(ctx, []openai.ChatCompletionMessage{
-			{
-				Role:    openai.ChatMessageRoleUser,
-				Content: prompt,
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("error getting review: %w", err)
-		}
-		OverallReviewCompletion += fmt.Sprintf("File: %s \nReview: %s \n\n", file.GetFilename(), completion)
-
-		position := len(strings.Split(*file.Patch, "\n")) - 1
-
-		comment := &github.PullRequestComment{
-			CommitID: diff.Commits[len(diff.Commits)-1].SHA,
-			Path:     file.Filename,
-			Body:     &completion,
-			Position: &position,
-		}
-
-		if opts.Test {
-			continue
-		}
-
-		if _, err := githubClient.CreatePullRequestComment(ctx, opts.Owner, opts.Repo, opts.PRNumber, comment); err != nil {
-			return fmt.Errorf("error creating comment: %w", err)
-		}
-	}
-
-	overallCompletion, err := openAIClient.ChatCompletion(ctx, []openai.ChatCompletionMessage{
-		{
-			Role:    openai.ChatMessageRoleUser,
-			Content: fmt.Sprintf(oAIClient.PromptOverallReview, OverallReviewCompletion),
-		},
-	})
+	comments, err := review.GenerateCommentsFromDiff(ctx, openAIClient, diff)
 	if err != nil {
-		return fmt.Errorf("error getting overall review: %w", err)
+		return err
 	}
 
 	if opts.Test {
-		fmt.Println(OverallReviewCompletion)
-		fmt.Println("=====================================")
-		fmt.Println(overallCompletion)
-
+		fmt.Printf("Comments: %v \n", comments)
 		return nil
 	}
 
-	comment := &github.PullRequestReviewRequest{Body: &overallCompletion}
-	if _, err = githubClient.CreateReview(ctx, opts.Owner, opts.Repo, opts.PRNumber, comment); err != nil {
-		return fmt.Errorf("error creating comment: %w", err)
+	err = review.PushComments(ctx, githubClient, opts.Owner, opts.Repo, opts.PRNumber, comments)
+	if err != nil {
+		return fmt.Errorf("error creating comments: %w", err)
 	}
 
 	return nil
