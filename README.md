@@ -9,24 +9,10 @@ This repository contains a tool for updating and reviewing GitHub pull requests 
 
 ## Installation
 
-1. Clone the repository:
-
-   ```
-   git clone https://github.com/ravilushqa/gpt-pullrequest-updater.git
-   ```
-
-2. Navigate to the project root:
-
-   ```
-   cd gpt-pullrequest-updater
-   ```
-
-3. Build the commands:
-
-   ```
-   go build -o description ./cmd/description
-   go build -o review ./cmd/review
-   ```
+```bash
+go install github.com/ravilushqa/gpt-pullrequest-updater/cmd/description@latest
+go install github.com/ravilushqa/gpt-pullrequest-updater/cmd/review@latest
+```
 
 ## Usage
 
