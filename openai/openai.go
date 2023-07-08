@@ -21,19 +21,21 @@ var PromptDescribeOverall string
 
 type Client struct {
 	client *openai.Client
+	model  string
 }
 
-func NewClient(token string) *Client {
+func NewClient(token, model string) *Client {
 	return &Client{
 		client: openai.NewClient(token),
+		model:  model,
 	}
 }
 
-func (o *Client) ChatCompletion(ctx context.Context, messages []openai.ChatCompletionMessage) (string, error) {
-	resp, err := o.client.CreateChatCompletion(
+func (c *Client) ChatCompletion(ctx context.Context, messages []openai.ChatCompletionMessage) (string, error) {
+	resp, err := c.client.CreateChatCompletion(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model:       openai.GPT3Dot5Turbo,
+			Model:       c.model,
 			Messages:    messages,
 			Temperature: 0.1,
 		},
@@ -47,10 +49,10 @@ func (o *Client) ChatCompletion(ctx context.Context, messages []openai.ChatCompl
 		fmt.Println("Retrying after 1 minute")
 		// retry once after 1 minute
 		time.Sleep(time.Minute)
-		resp, err = o.client.CreateChatCompletion(
+		resp, err = c.client.CreateChatCompletion(
 			ctx,
 			openai.ChatCompletionRequest{
-				Model:       openai.GPT3Dot5Turbo,
+				Model:       c.model,
 				Messages:    messages,
 				Temperature: 0.1,
 			},

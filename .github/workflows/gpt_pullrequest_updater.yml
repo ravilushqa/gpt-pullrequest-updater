@@ -36,6 +36,7 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
           PR_NUMBER: ${{ github.event.number }}
+          OPENAI_MODEL: gpt-4
 
       - name: Review Pull Request
         if: github.event.action == 'opened'
@@ -47,3 +48,4 @@ jobs:
           OWNER: ${{ github.repository_owner }}
           REPO: ${{ github.event.repository.name }}
           PR_NUMBER: ${{ github.event.number }}
+          OPENAI_MODEL: gpt-4

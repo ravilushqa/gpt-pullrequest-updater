@@ -20,6 +20,7 @@ var opts struct {
 	Owner       string `long:"owner" env:"OWNER" description:"GitHub owner" required:"true"`
 	Repo        string `long:"repo" env:"REPO" description:"GitHub repo" required:"true"`
 	PRNumber    int    `long:"pr-number" env:"PR_NUMBER" description:"Pull request number" required:"true"`
+	OpenAIModel string `long:"openai-model" env:"OPENAI_MODEL" description:"OpenAI model" default:"gpt-3.5-turbo"`
 	Test        bool   `long:"test" env:"TEST" description:"Test mode"`
 }
 
@@ -40,7 +41,7 @@ func main() {
 }
 
 func run(ctx context.Context) error {
-	openAIClient := oAIClient.NewClient(opts.OpenAIToken)
+	openAIClient := oAIClient.NewClient(opts.OpenAIToken, opts.OpenAIModel)
 	githubClient := ghClient.NewClient(ctx, opts.GithubToken)
 
 	pr, err := githubClient.GetPullRequest(ctx, opts.Owner, opts.Repo, opts.PRNumber)
