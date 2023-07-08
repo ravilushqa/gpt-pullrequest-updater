@@ -1,5 +1,7 @@
 # GPT-PullRequest-Updater
 
+[![go-recipes](https://raw.githubusercontent.com/nikolaydubina/go-recipes/main/badge.svg?raw=true)](https://github.com/nikolaydubina/go-recipes)
+
 This repository contains a tool for updating and reviewing GitHub pull requests using OpenAI's GPT language model. The project has two commands: `description` and `review`. The `description` command updates the pull request description with a high-level summary of the changes made. The `review` command creates individual comments for each file and an overall review summary comment.
 
 ## Requirements
