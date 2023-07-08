@@ -32,6 +32,7 @@ Application Options:
       --owner=        GitHub owner [$OWNER]
       --repo=         GitHub repo [$REPO]
       --pr-number=    Pull request number [$PR_NUMBER]
+      --openai-model= OpenAI model (default: gpt-3.5-turbo) [$OPENAI_MODEL]
       --test          Test mode [$TEST]
   ```
 
