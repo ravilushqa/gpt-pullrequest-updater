@@ -24,6 +24,6 @@ func ExtractShortcutStoryID(title string) (string, error) {
 	return matches[1], nil
 }
 
-func GenerateShortcutStoryURL(shortcutBaseUrl, ticketId string) string {
-	return fmt.Sprintf(storyURLFormat, shortcutBaseUrl, ticketId)
+func GenerateShortcutStoryURL(shortcutBaseURL, ticketID string) string {
+	return fmt.Sprintf(storyURLFormat, shortcutBaseURL, ticketID)
 }
