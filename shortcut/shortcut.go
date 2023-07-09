@@ -5,7 +5,7 @@ import (
 	"regexp"
 )
 
-const storyUrlFormat = "%s/story/%s"
+const storyURLFormat = "%s/story/%s"
 
 func ExtractShortcutStoryID(title string) (string, error) {
 
@@ -24,6 +24,6 @@ func ExtractShortcutStoryID(title string) (string, error) {
 	return matches[1], nil
 }
 
-func GenerateShortcutStoryUrl(shortcutBaseUrl, ticketId string) string {
-	return fmt.Sprintf(storyUrlFormat, shortcutBaseUrl, ticketId)
+func GenerateShortcutStoryURL(shortcutBaseUrl, ticketId string) string {
+	return fmt.Sprintf(storyURLFormat, shortcutBaseUrl, ticketId)
 }

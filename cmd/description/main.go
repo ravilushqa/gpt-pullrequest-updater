@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/ravilushqa/gpt-pullrequest-updater/shortcut"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +14,7 @@ import (
 	ghClient "github.com/ravilushqa/gpt-pullrequest-updater/github"
 	"github.com/ravilushqa/gpt-pullrequest-updater/jira"
 	oAIClient "github.com/ravilushqa/gpt-pullrequest-updater/openai"
+	"github.com/ravilushqa/gpt-pullrequest-updater/shortcut"
 )
 
 var opts struct {
@@ -26,7 +26,7 @@ var opts struct {
 	OpenAIModel     string `long:"openai-model" env:"OPENAI_MODEL" description:"OpenAI model" default:"gpt-3.5-turbo"`
 	Test            bool   `long:"test" env:"TEST" description:"Test mode"`
 	JiraURL         string `long:"jira-url" env:"JIRA_URL" description:"Jira URL. Example: https://jira.atlassian.com"`
-	ShortcutBaseURL string `long:"shortcut-url" env:"SHORTCUT_URL" description:"Shortcut URL. Example: https://app.shortcut.com/foo/"`
+	ShortcutBaseURL string `long:"shortcut-url" env:"SHORTCUT_URL" description:"Shortcut URL. Example: https://app.shortcut.com/foo"`
 }
 
 func main() {
@@ -110,5 +110,5 @@ func buildShortcutContent(shortcutBaseURL string, pr *github.PullRequest) string
 		return ""
 	}
 
-	return fmt.Sprintf("### Shortcut story: [%s](%s)", id, shortcut.GenerateShortcutStoryUrl(shortcutBaseURL, id))
+	return fmt.Sprintf("### Shortcut story: [%s](%s)", id, shortcut.GenerateShortcutStoryURL(shortcutBaseURL, id))
 }
