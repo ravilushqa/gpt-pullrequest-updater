@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/ravilushqa/gpt-pullrequest-updater/description"
+	oAIClient "github.com/ravilushqa/gpt-pullrequest-updater/openai"
+	"github.com/ravilushqa/gpt-pullrequest-updater/shortcut"
 	"os"
 	"os/signal"
 	"syscall"
@@ -10,10 +13,8 @@ import (
 	"github.com/google/go-github/v51/github"
 	"github.com/jessevdk/go-flags"
 
-	"github.com/ravilushqa/gpt-pullrequest-updater/description"
 	ghClient "github.com/ravilushqa/gpt-pullrequest-updater/github"
 	"github.com/ravilushqa/gpt-pullrequest-updater/jira"
-	oAIClient "github.com/ravilushqa/gpt-pullrequest-updater/openai"
 )
 
 var opts struct {
@@ -25,7 +26,7 @@ var opts struct {
 	OpenAIModel     string `long:"openai-model" env:"OPENAI_MODEL" description:"OpenAI model" default:"gpt-3.5-turbo"`
 	Test            bool   `long:"test" env:"TEST" description:"Test mode"`
 	JiraURL         string `long:"jira-url" env:"JIRA_URL" description:"Jira URL. Example: https://jira.atlassian.com"`
-	ShortcutBaseURL string `long:"shortcut-url" env:"SHORTCUT_URL" description:"Shortcut URL. Example: https://app.shortcut.com/foo/"`
+	ShortcutBaseUrl string `long:"shortcut-url" env:"SHORTCUT_URL" description:"Shortcut URL. Example: https://app.shortcut.com/foo/"`
 }
 
 func main() {
@@ -73,6 +74,13 @@ func run(ctx context.Context) error {
 		}
 	}
 
+	if opts.ShortcutBaseUrl != "" {
+		shortcutContent := buildShortcutContent(opts.ShortcutBaseUrl, pr)
+		if shortcutContent != "" {
+			completion = fmt.Sprintf("%s\n\n%s", shortcutContent, completion)
+		}
+	}
+
 	if opts.Test {
 		return nil
 	}
@@ -85,4 +93,22 @@ func run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func buildShortcutContent(shortcutBaseUrl string, pr *github.PullRequest) string {
+	fmt.Println("Adding Shortcut ticket")
+
+	id, err := shortcut.ExtractShortcutStoryId(*pr.Title)
+
+	if err != nil {
+		// Extracting from the branch name
+		id, err = shortcut.ExtractShortcutStoryId(*pr.Head.Ref)
+	}
+
+	if err != nil {
+		fmt.Printf("There is no Shortcut story ID: %v \n", err)
+		return ""
+	}
+
+	return fmt.Sprintf("### Shortcut story: [%s](%s)", id, shortcut.GenerateShortcutStoryUrl(shortcutBaseUrl, id))
 }
