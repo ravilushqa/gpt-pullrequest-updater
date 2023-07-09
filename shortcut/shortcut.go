@@ -7,7 +7,7 @@ import (
 
 const storyUrlFormat = "%s/story/%s"
 
-func ExtractShortcutStoryId(title string) (string, error) {
+func ExtractShortcutStoryID(title string) (string, error) {
 
 	// This regular expression pattern matches a Shortcut story ID (e.g. sc-12345).
 	pattern := `sc-([\d]+)`
