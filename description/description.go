@@ -3,6 +3,7 @@ package description
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/go-github/v51/github"
 	"github.com/sashabaranov/go-openai"
@@ -10,11 +11,13 @@ import (
 	oAIClient "github.com/ravilushqa/gpt-pullrequest-updater/openai"
 )
 
-const Placeholder = "gpt-updater:description"
-const PlaceholderHidden = `<!--
-gpt-updater:description
--->
-`
+const placeholder = "gpt-updater:description"
+
+type Info struct {
+	Completion   string
+	JiraInfo     string
+	ShortcutInfo string
+}
 
 func GenerateCompletion(ctx context.Context, client *oAIClient.Client, diff *github.CommitsComparison, pr *github.PullRequest) (string, error) {
 	sumDiffs := calculateSumDiffs(diff)
@@ -28,6 +31,35 @@ func GenerateCompletion(ctx context.Context, client *oAIClient.Client, diff *git
 	}
 
 	return completion, err
+}
+
+func BuildUpdatedPullRequest(existingDescription string, info Info) *github.PullRequest {
+
+	desc := ""
+
+	if info.JiraInfo != "" {
+		desc = info.JiraInfo + "\n\n" + desc
+	}
+
+	if info.ShortcutInfo != "" {
+		desc = info.ShortcutInfo + "\n\n" + desc
+	}
+
+	if info.Completion != "" {
+		desc += info.Completion
+	}
+
+	if existingDescription != "" && strings.Contains(existingDescription, placeholder) {
+		builtBody := strings.Replace(
+			existingDescription,
+			placeholder,
+			fmt.Sprintf("## 🤖 gpt-updater description\n<!--\n%s\n-->\n%s", placeholder, desc),
+			1,
+		)
+		return &github.PullRequest{Body: github.String(builtBody)}
+	}
+
+	return &github.PullRequest{Body: github.String(desc)}
 }
 
 func calculateSumDiffs(diff *github.CommitsComparison) int {
