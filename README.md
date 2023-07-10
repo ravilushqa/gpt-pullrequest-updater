@@ -56,6 +56,11 @@ Replace `<GITHUB_TOKEN>`, `<OPENAI_TOKEN>`, `<OWNER>`, `<REPO>`, and `<PR_NUMBER
 The usage for the `description` command is similar to the `review` command. Replace `review` with `description` in the command above and execute.
 The only difference is that the `description` command has extra options, `--jira-url` and `--shortcut-url`, which are used to generate Jira or Shortcut links in the description, accordingly.
 
+#### Placeholders
+
+You can use the following placeholders in the description template:
+- `gpt-updater:description` - when this placeholder is present in your pull request description, it will be replaced with the generated description; otherwise, the entire description field will be replaced.
+
 ## GitHub Action
 
 This script can be used as a GitHub Action, allowing it to run automatically in your repository. To get started, add a new workflow file in your repository, such as: `.github/workflows/gpt_pullrequest_updater.yml`.
