@@ -10,6 +10,12 @@ import (
 	oAIClient "github.com/ravilushqa/gpt-pullrequest-updater/openai"
 )
 
+const Placeholder = "gpt-updater:description"
+const PlaceholderHidden = `<!--
+gpt-updater:description
+-->
+`
+
 func GenerateCompletion(ctx context.Context, client *oAIClient.Client, diff *github.CommitsComparison, pr *github.PullRequest) (string, error) {
 	sumDiffs := calculateSumDiffs(diff)
 

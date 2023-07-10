@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/google/go-github/v51/github"
@@ -28,6 +29,14 @@ var opts struct {
 	JiraURL         string `long:"jira-url" env:"JIRA_URL" description:"Jira URL. Example: https://jira.atlassian.com"`
 	ShortcutBaseURL string `long:"shortcut-url" env:"SHORTCUT_URL" description:"Shortcut URL. Example: https://app.shortcut.com/foo"`
 }
+
+type prDataType struct {
+	completion   string
+	jiraInfo     string
+	shortcutInfo string
+}
+
+var prData prDataType
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -59,7 +68,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("error getting commits: %w", err)
 	}
 
-	completion, err := description.GenerateCompletion(ctx, openAIClient, diff, pr)
+	prData.completion, err = description.GenerateCompletion(ctx, openAIClient, diff, pr)
 	if err != nil {
 		return fmt.Errorf("error generating completion: %w", err)
 	}
@@ -70,15 +79,12 @@ func run(ctx context.Context) error {
 		if err != nil {
 			fmt.Printf("Error extracting Jira ticket ID: %v \n", err)
 		} else {
-			completion = fmt.Sprintf("### JIRA ticket: [%s](%s) \n\n%s", id, jira.GenerateJiraTicketURL(opts.JiraURL, id), completion)
+			prData.jiraInfo = fmt.Sprintf("### JIRA ticket: [%s](%s)", id, jira.GenerateJiraTicketURL(opts.JiraURL, id))
 		}
 	}
 
 	if opts.ShortcutBaseURL != "" {
-		shortcutContent := buildShortcutContent(opts.ShortcutBaseURL, pr)
-		if shortcutContent != "" {
-			completion = fmt.Sprintf("%s\n\n%s", shortcutContent, completion)
-		}
+		prData.shortcutInfo = buildShortcutContent(opts.ShortcutBaseURL, pr)
 	}
 
 	if opts.Test {
@@ -87,7 +93,7 @@ func run(ctx context.Context) error {
 
 	// Update the pull request description
 	fmt.Println("Updating pull request")
-	updatePr := &github.PullRequest{Body: github.String(completion)}
+	updatePr := buildUpdatedDescription(*pr.Body, prData)
 	if _, err = githubClient.UpdatePullRequest(ctx, opts.Owner, opts.Repo, opts.PRNumber, updatePr); err != nil {
 		return fmt.Errorf("error updating pull request: %w", err)
 	}
@@ -111,4 +117,33 @@ func buildShortcutContent(shortcutBaseURL string, pr *github.PullRequest) string
 	}
 
 	return fmt.Sprintf("### Shortcut story: [%s](%s)", id, shortcut.GenerateShortcutStoryURL(shortcutBaseURL, id))
+}
+
+func buildUpdatedDescription(existingBody string, prData prDataType) *github.PullRequest {
+
+	desc := ""
+
+	if prData.jiraInfo != "" {
+		desc = prData.jiraInfo + "\n\n" + desc
+	}
+
+	if prData.shortcutInfo != "" {
+		desc = prData.shortcutInfo + "\n\n" + desc
+	}
+
+	if prData.completion != "" {
+		desc += prData.completion
+	}
+
+	if existingBody != "" && strings.Contains(existingBody, description.Placeholder) {
+		builtBody := strings.Replace(
+			existingBody,
+			description.Placeholder,
+			description.PlaceholderHidden+desc,
+			1,
+		)
+		return &github.PullRequest{Body: github.String(builtBody)}
+	}
+
+	return &github.PullRequest{Body: github.String(desc)}
 }
