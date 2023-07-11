@@ -50,7 +50,7 @@ func BuildUpdatedPullRequest(existingDescription string, info Info) *github.Pull
 		desc += info.Completion
 	}
 
-	builtBody := fmt.Sprintf("## 🤖 gpt-updater description\n%s\n%s", placeholderFinished, desc)
+	builtBody := fmt.Sprintf("%s\n## 🤖 gpt-updater description\n%s", placeholderFinished, desc)
 
 	if needToUpdateByPlaceholder(existingDescription) {
 		builtBody = strings.Replace(existingDescription, placeholder, builtBody, 1)

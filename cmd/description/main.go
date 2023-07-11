@@ -56,6 +56,11 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("error getting pull request: %w", err)
 	}
 
+	if description.IsDescriptionFinished(*pr.Body) {
+		fmt.Println("Pull request already has a generated description. Skipping...")
+		return nil
+	}
+
 	diff, err := githubClient.CompareCommits(ctx, opts.Owner, opts.Repo, pr.GetBase().GetSHA(), pr.GetHead().GetSHA())
 	if err != nil {
 		return fmt.Errorf("error getting commits: %w", err)
@@ -86,14 +91,9 @@ func run(ctx context.Context) error {
 
 	// Update the pull request description
 	fmt.Println("Updating pull request")
-
-	if description.IsDescriptionFinished(*pr.Body) {
-		fmt.Println("Pull request already has a generated description. Skipping...")
-	} else {
-		updatedPr := description.BuildUpdatedPullRequest(*pr.Body, descriptionInfo)
-		if _, err = githubClient.UpdatePullRequest(ctx, opts.Owner, opts.Repo, opts.PRNumber, updatedPr); err != nil {
-			return fmt.Errorf("error updating pull request: %w", err)
-		}
+	updatedPr := description.BuildUpdatedPullRequest(*pr.Body, descriptionInfo)
+	if _, err = githubClient.UpdatePullRequest(ctx, opts.Owner, opts.Repo, opts.PRNumber, updatedPr); err != nil {
+		return fmt.Errorf("error updating pull request: %w", err)
 	}
 
 	return nil
