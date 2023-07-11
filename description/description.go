@@ -12,6 +12,7 @@ import (
 )
 
 const placeholder = "gpt-updater:description"
+const placeholderFinished = "<!-- gpt-updater:description -->"
 
 type Info struct {
 	Completion   string
@@ -49,17 +50,22 @@ func BuildUpdatedPullRequest(existingDescription string, info Info) *github.Pull
 		desc += info.Completion
 	}
 
-	if existingDescription != "" && strings.Contains(existingDescription, placeholder) {
-		builtBody := strings.Replace(
-			existingDescription,
-			placeholder,
-			fmt.Sprintf("## 🤖 gpt-updater description\n<!--\n%s\n-->\n%s", placeholder, desc),
-			1,
-		)
-		return &github.PullRequest{Body: github.String(builtBody)}
+	builtBody := fmt.Sprintf("## 🤖 gpt-updater description\n%s\n%s", placeholderFinished, desc)
+
+	if needToUpdateByPlaceholder(existingDescription) {
+		builtBody = strings.Replace(existingDescription, placeholder, builtBody, 1)
 	}
 
-	return &github.PullRequest{Body: github.String(desc)}
+	return &github.PullRequest{Body: github.String(builtBody)}
+}
+
+func IsDescriptionFinished(existingDescription string) bool {
+	return strings.Contains(existingDescription, placeholderFinished)
+}
+
+func needToUpdateByPlaceholder(existingDescription string) bool {
+	return !strings.Contains(existingDescription, placeholderFinished) &&
+		strings.Contains(existingDescription, placeholder)
 }
 
 func calculateSumDiffs(diff *github.CommitsComparison) int {
