@@ -14,18 +14,22 @@ import (
 	ghClient "github.com/ravilushqa/gpt-pullrequest-updater/github"
 	"github.com/ravilushqa/gpt-pullrequest-updater/jira"
 	oAIClient "github.com/ravilushqa/gpt-pullrequest-updater/openai"
+	"github.com/ravilushqa/gpt-pullrequest-updater/shortcut"
 )
 
 var opts struct {
-	GithubToken string `long:"gh-token" env:"GITHUB_TOKEN" description:"GitHub token" required:"true"`
-	OpenAIToken string `long:"openai-token" env:"OPENAI_TOKEN" description:"OpenAI token" required:"true"`
-	Owner       string `long:"owner" env:"OWNER" description:"GitHub owner" required:"true"`
-	Repo        string `long:"repo" env:"REPO" description:"GitHub repo" required:"true"`
-	PRNumber    int    `long:"pr-number" env:"PR_NUMBER" description:"Pull request number" required:"true"`
-	OpenAIModel string `long:"openai-model" env:"OPENAI_MODEL" description:"OpenAI model" default:"gpt-3.5-turbo"`
-	Test        bool   `long:"test" env:"TEST" description:"Test mode"`
-	JiraURL     string `long:"jira-url" env:"JIRA_URL" description:"Jira URL. Example: https://jira.atlassian.com"`
+	GithubToken     string `long:"gh-token" env:"GITHUB_TOKEN" description:"GitHub token" required:"true"`
+	OpenAIToken     string `long:"openai-token" env:"OPENAI_TOKEN" description:"OpenAI token" required:"true"`
+	Owner           string `long:"owner" env:"OWNER" description:"GitHub owner" required:"true"`
+	Repo            string `long:"repo" env:"REPO" description:"GitHub repo" required:"true"`
+	PRNumber        int    `long:"pr-number" env:"PR_NUMBER" description:"Pull request number" required:"true"`
+	OpenAIModel     string `long:"openai-model" env:"OPENAI_MODEL" description:"OpenAI model" default:"gpt-3.5-turbo"`
+	Test            bool   `long:"test" env:"TEST" description:"Test mode"`
+	JiraURL         string `long:"jira-url" env:"JIRA_URL" description:"Jira URL. Example: https://jira.atlassian.com"`
+	ShortcutBaseURL string `long:"shortcut-url" env:"SHORTCUT_URL" description:"Shortcut URL. Example: https://app.shortcut.com/foo"`
 }
+
+var descriptionInfo description.Info
 
 func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -52,12 +56,17 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("error getting pull request: %w", err)
 	}
 
+	if pr.Body != nil && description.IsDescriptionFinished(*pr.Body) {
+		fmt.Println("Pull request already has a generated description. Skipping...")
+		return nil
+	}
+
 	diff, err := githubClient.CompareCommits(ctx, opts.Owner, opts.Repo, pr.GetBase().GetSHA(), pr.GetHead().GetSHA())
 	if err != nil {
 		return fmt.Errorf("error getting commits: %w", err)
 	}
 
-	completion, err := description.GenerateCompletion(ctx, openAIClient, diff, pr)
+	descriptionInfo.Completion, err = description.GenerateCompletion(ctx, openAIClient, diff, pr)
 	if err != nil {
 		return fmt.Errorf("error generating completion: %w", err)
 	}
@@ -68,8 +77,12 @@ func run(ctx context.Context) error {
 		if err != nil {
 			fmt.Printf("Error extracting Jira ticket ID: %v \n", err)
 		} else {
-			completion = fmt.Sprintf("### JIRA ticket: [%s](%s) \n\n%s", id, jira.GenerateJiraTicketURL(opts.JiraURL, id), completion)
+			descriptionInfo.JiraInfo = fmt.Sprintf("### JIRA ticket: [%s](%s)", id, jira.GenerateJiraTicketURL(opts.JiraURL, id))
 		}
+	}
+
+	if opts.ShortcutBaseURL != "" {
+		descriptionInfo.ShortcutInfo = buildShortcutContent(opts.ShortcutBaseURL, pr)
 	}
 
 	if opts.Test {
@@ -78,10 +91,28 @@ func run(ctx context.Context) error {
 
 	// Update the pull request description
 	fmt.Println("Updating pull request")
-	updatePr := &github.PullRequest{Body: github.String(completion)}
-	if _, err = githubClient.UpdatePullRequest(ctx, opts.Owner, opts.Repo, opts.PRNumber, updatePr); err != nil {
+	updatedPr := description.BuildUpdatedPullRequest(pr.Body, descriptionInfo)
+	if _, err = githubClient.UpdatePullRequest(ctx, opts.Owner, opts.Repo, opts.PRNumber, updatedPr); err != nil {
 		return fmt.Errorf("error updating pull request: %w", err)
 	}
 
 	return nil
+}
+
+func buildShortcutContent(shortcutBaseURL string, pr *github.PullRequest) string {
+	fmt.Println("Adding Shortcut ticket")
+
+	id, err := shortcut.ExtractShortcutStoryID(*pr.Title)
+
+	if err != nil {
+		// Extracting from the branch name
+		id, err = shortcut.ExtractShortcutStoryID(*pr.Head.Ref)
+	}
+
+	if err != nil {
+		fmt.Printf("There is no Shortcut story ID: %v \n", err)
+		return ""
+	}
+
+	return fmt.Sprintf("### Shortcut story: [%s](%s)", id, shortcut.GenerateShortcutStoryURL(shortcutBaseURL, id))
 }
