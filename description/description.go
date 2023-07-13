@@ -34,7 +34,7 @@ func GenerateCompletion(ctx context.Context, client *oAIClient.Client, diff *git
 	return completion, err
 }
 
-func BuildUpdatedPullRequest(existingDescription string, info Info) *github.PullRequest {
+func BuildUpdatedPullRequest(existingDescription *string, info Info) *github.PullRequest {
 
 	desc := ""
 
@@ -52,8 +52,8 @@ func BuildUpdatedPullRequest(existingDescription string, info Info) *github.Pull
 
 	builtBody := fmt.Sprintf("%s\n## 🤖 gpt-updater description\n%s", placeholderFinished, desc)
 
-	if needToUpdateByPlaceholder(existingDescription) {
-		builtBody = strings.Replace(existingDescription, placeholder, builtBody, 1)
+	if existingDescription != nil && needToUpdateByPlaceholder(*existingDescription) {
+		builtBody = strings.Replace(*existingDescription, placeholder, builtBody, 1)
 	}
 
 	return &github.PullRequest{Body: github.String(builtBody)}

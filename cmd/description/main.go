@@ -56,7 +56,7 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("error getting pull request: %w", err)
 	}
 
-	if description.IsDescriptionFinished(*pr.Body) {
+	if pr.Body != nil && description.IsDescriptionFinished(*pr.Body) {
 		fmt.Println("Pull request already has a generated description. Skipping...")
 		return nil
 	}
@@ -91,7 +91,7 @@ func run(ctx context.Context) error {
 
 	// Update the pull request description
 	fmt.Println("Updating pull request")
-	updatedPr := description.BuildUpdatedPullRequest(*pr.Body, descriptionInfo)
+	updatedPr := description.BuildUpdatedPullRequest(pr.Body, descriptionInfo)
 	if _, err = githubClient.UpdatePullRequest(ctx, opts.Owner, opts.Repo, opts.PRNumber, updatedPr); err != nil {
 		return fmt.Errorf("error updating pull request: %w", err)
 	}
